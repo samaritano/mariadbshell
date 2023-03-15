@@ -1,2 +1,2 @@
 # mariadbshell
-MariaDB multithread dump and resto utility
+MariaDB multithread dump and restore utility
