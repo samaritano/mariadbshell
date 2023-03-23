@@ -16,7 +16,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func dump_table(targetdir string, host string, user string, pwd string, database string, table string) {
+func dump_table(targetdir string, host string, port string, user string, pwd string, database string, table string) {
 	log.Println("Start dump of table " + table)
 	startTime := time.Now()
 	//dumpFile, err := os.OpenFile(targetdir+"/"+database+"_"+table+".dmp", os.O_CREATE|os.O_WRONLY, 0666)
@@ -30,7 +30,7 @@ func dump_table(targetdir string, host string, user string, pwd string, database
 	defer gzw.Close()
 	defer gzw.Flush()
 
-	cmd := exec.Command("mysqldump", "-h"+host, "-u"+user, "-p"+pwd, database, table)
+	cmd := exec.Command("mysqldump", "-h"+host, "-P "+port, "-u"+user, "-p"+pwd, database, table)
 	//cmd.Stdout = dumpFile
 	cmd.Stdout = gzw
 	cmd.Stderr = os.Stderr
@@ -44,7 +44,7 @@ func dump_table(targetdir string, host string, user string, pwd string, database
 	log.Println("End dump of table " + table + "(" + elapsed.String() + ")")
 }
 
-func import_table(importfile string, host string, user string, pwd string, database string) {
+func import_table(importfile string, host string, port string, user string, pwd string, database string) {
 	log.Println("Start import of file " + importfile)
 	startTime := time.Now()
 
@@ -60,7 +60,7 @@ func import_table(importfile string, host string, user string, pwd string, datab
 	}
 	defer gzr.Close()
 
-	cmd := exec.Command("mysql", "-h"+host, "-u"+user, "-p"+pwd, "-A", database)
+	cmd := exec.Command("mysql", "-h"+host, "-P "+port, "-u"+user, "-p"+pwd, "-A", database)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	//cmd.Stdin = dumpFile
@@ -78,15 +78,16 @@ func import_table(importfile string, host string, user string, pwd string, datab
 func main() {
 	logFilename := os.Args[1]
 	serverName := os.Args[2]
-	userName := os.Args[3]
-	passWord := os.Args[4]
-	dataBase := os.Args[5]
-	targetDir := os.Args[6]
-	numberChilds, err := strconv.Atoi(os.Args[7])
+	serverPort := os.Args[3]
+	userName := os.Args[4]
+	passWord := os.Args[5]
+	dataBase := os.Args[6]
+	targetDir := os.Args[7]
+	numberChilds, err := strconv.Atoi(os.Args[8])
 	if err != nil {
 		log.Fatal(err)
 	}
-	action := os.Args[8]
+	action := os.Args[9]
 
 	logFile, err := os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -113,7 +114,7 @@ func main() {
 		log.Fatal("Directory " + targetDir + " is empty")
 	}
 
-	db, err := sql.Open("mysql", userName+":"+passWord+"@tcp("+serverName+")/"+dataBase)
+	db, err := sql.Open("mysql", userName+":"+passWord+"@tcp("+serverName+":"+serverPort+")/"+dataBase)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -157,7 +158,7 @@ func main() {
 			go func(t string) {
 				defer wg.Done()
 				concurrentDumps <- struct{}{}
-				dump_table(targetDir, serverName, userName, passWord, dataBase, t)
+				dump_table(targetDir, serverName, serverPort, userName, passWord, dataBase, t)
 				<-concurrentDumps
 			}(table)
 		}
@@ -189,7 +190,7 @@ func main() {
 			go func(f string) {
 				defer wg.Done()
 				concurrentImports <- struct{}{}
-				import_table(f, serverName, userName, passWord, dataBase)
+				import_table(f, serverName, serverPort, userName, passWord, dataBase)
 				<-concurrentImports
 			}(targetDir + "/" + dir.Name())
 		}
